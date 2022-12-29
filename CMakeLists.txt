@@ -112,7 +112,8 @@ list(APPEND tools_srcs
   tools/test_cases.F90)
 
 list(APPEND tools_srcs_extra
-  tools/fv_iau_mod.F90)
+  tools/fv_iau_mod.F90
+  tools/module_iau_netcdf.F90)
 
 list(APPEND driver_srcs
   driver/fvGFS/DYCORE_typedefs.F90
