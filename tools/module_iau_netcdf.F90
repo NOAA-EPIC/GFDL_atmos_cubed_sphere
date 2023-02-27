@@ -134,10 +134,10 @@ subroutine IAU_initialize_netcdf(IPD_Control, IAU_Data,Init_parm, testing)
     logical:: found, runTests 
     integer nfilesall
     integer, allocatable :: idt(:)
-    if(not(present(testing))) then
-       runTests = .true.
-    else 
+    if(present(testing)) then
        runTests = testing
+    else 
+       runTests = .true.
     endif
     is  = IPD_Control%isc
     ie  = is + IPD_Control%nx-1
