@@ -328,11 +328,12 @@ subroutine IAU_initialize (IPD_Control, IAU_Data,Init_parm, testing, iau_inc1, i
 
 end subroutine IAU_initialize
 
-subroutine getiauforcing(IPD_Control,IAU_Data)
+subroutine getiauforcing(IPD_Control,IAU_Data, iau_inc)
 
    implicit none
    type (IPD_control_type), intent(in) :: IPD_Control
    type(IAU_external_data_type),  intent(inout) :: IAU_Data
+   type (IAU_external_data_type), optional,       intent(in) :: iau_inc
    real(kind=kind_phys) t1,t2,sx,wx,wt,dtp
    integer n,i,j,k,sphum,kstep,nstep,itnext
 
@@ -406,7 +407,12 @@ subroutine getiauforcing(IPD_Control,IAU_Data)
             iau_state%hr2=IPD_Control%iaufhrs(itnext)
             iau_state%inc1=iau_state%inc2
             if (is_master()) print *,'reading next increment file',trim(IPD_Control%iau_inc_files(itnext))
-            call read_iau_forcing(IPD_Control,iau_state%inc2,'INPUT/'//trim(IPD_Control%iau_inc_files(itnext)))
+       !    call read_iau_forcing(IPD_Control,iau_state%inc2,'INPUT/'//trim(IPD_Control%iau_inc_files(itnext)))
+            iau_state%inc2%ua_inc(is:ie, js:je, :)=iau_inc%ua_inc(is:ie, js:je, :)
+            iau_state%inc2%va_inc(is:ie, js:je, :)=iau_inc%va_inc(is:ie, js:je, :)
+            iau_state%inc2%temp_inc(is:ie, js:je, :)=iau_inc%temp_inc(is:ie, js:je, :)
+            iau_state%inc2%delp_inc(is:ie, js:je, :)=iau_inc%delp_inc(is:ie, js:je, :)
+            iau_state%inc2%tracer_inc(is:ie, js:je, :, :)=iau_inc%tracer_inc(is:ie, js:je, :,:)
          endif
          call updateiauforcing(IPD_Control,IAU_Data,iau_state%wt)
       endif
