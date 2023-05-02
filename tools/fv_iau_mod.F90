@@ -53,6 +53,7 @@ module fv_iau_mod
                                  get_var1_double,     &
                                  get_var3_r4,         &
                                  get_var1_real, check_var_exists
+  use fv_arrays_mod,       only: fv_atmos_type
 #ifdef GFS_TYPES
   use GFS_typedefs,        only: IPD_init_type => GFS_init_type, &
                                  IPD_control_type => GFS_control_type, &
@@ -66,6 +67,7 @@ module fv_iau_mod
   use fv_treat_da_inc_mod, only: remap_coef
   use tracer_manager_mod,  only: get_tracer_names,get_tracer_index, get_number_tracers
   use field_manager_mod,   only: MODEL_ATMOS
+  use module_get_cubed_sphere_inc, only: read_netcdf_inc, iau_internal_data_type
   implicit none
 
   private
@@ -84,14 +86,6 @@ module fv_iau_mod
   integer, allocatable :: tracer_indicies(:)
 
   real(kind=4), allocatable:: wk3(:,:,:)
-  type iau_internal_data_type
-    real,allocatable :: ua_inc(:,:,:)
-    real,allocatable :: va_inc(:,:,:)
-    real,allocatable :: temp_inc(:,:,:)
-    real,allocatable :: delp_inc(:,:,:)
-    real,allocatable :: delz_inc(:,:,:)
-    real,allocatable :: tracer_inc(:,:,:,:)
-  end type iau_internal_data_type
   type iau_external_data_type
     real,allocatable :: ua_inc(:,:,:)
     real,allocatable :: va_inc(:,:,:)
@@ -111,13 +105,15 @@ module fv_iau_mod
       real(kind=kind_phys)        :: wt_normfact
   end type iau_state_type
   type(iau_state_type) :: IAU_state
-  public iau_external_data_type,IAU_initialize,getiauforcing
+  public IAU_initialize,getiauforcing,iau_external_data_type
 
 contains
-subroutine IAU_initialize (IPD_Control, IAU_Data,Init_parm, testing, iau_inc1, iau_inc2)
+subroutine IAU_initialize (IPD_Control, IAU_Data,Atm,mygrid,Init_parm, testing, iau_inc1, iau_inc2)
 !subroutine IAU_initialize (IPD_Control)
     type (IPD_control_type), intent(in) :: IPD_Control
     type (IAU_external_data_type), intent(inout) :: IAU_Data
+    type (fv_atmos_type),allocatable, intent(inout) :: Atm(:)
+    integer,          intent(in) :: mygrid
     type (IPD_init_type),    intent(in) :: Init_parm
     logical, optional,       intent(in) :: testing
     type (IAU_external_data_type), optional,       intent(in) :: iau_inc1
@@ -300,6 +296,7 @@ subroutine IAU_initialize (IPD_Control, IAU_Data,Init_parm, testing, iau_inc1, i
        iau_state%wt_normfact = (2*nstep+1)/normfact
     endif
     !call read_iau_forcing(IPD_Control,iau_state%inc1,'INPUT/'//trim(IPD_Control%iau_inc_files(1)))
+    call read_netcdf_inc('INPUT/'//trim(IPD_Control%iau_inc_files(1)),iau_state%inc1,Atm,mygrid,.false.)
     iau_state%inc1%ua_inc(is:ie, js:je, :)=iau_inc1%ua_inc(is:ie, js:je, :)
     iau_state%inc1%va_inc(is:ie, js:je, :)=iau_inc1%va_inc(is:ie, js:je, :)
     iau_state%inc1%temp_inc(is:ie, js:je, :)=iau_inc1%temp_inc(is:ie, js:je, :)
@@ -317,6 +314,7 @@ subroutine IAU_initialize (IPD_Control, IAU_Data,Init_parm, testing, iau_inc1, i
        allocate (iau_state%inc2%tracer_inc(is:ie, js:je, km,ntracers))
        iau_state%hr2=IPD_Control%iaufhrs(2)
 !      call read_iau_forcing(IPD_Control,iau_state%inc2,'INPUT/'//trim(IPD_Control%iau_inc_files(2)))
+       call read_netcdf_inc('INPUT/'//trim(IPD_Control%iau_inc_files(2)),iau_state%inc2,Atm,mygrid,.false.)
        iau_state%inc2%ua_inc(is:ie, js:je, :)=iau_inc2%ua_inc(is:ie, js:je, :)
        iau_state%inc2%va_inc(is:ie, js:je, :)=iau_inc2%va_inc(is:ie, js:je, :)
        iau_state%inc2%temp_inc(is:ie, js:je, :)=iau_inc2%temp_inc(is:ie, js:je, :)
@@ -328,12 +326,13 @@ subroutine IAU_initialize (IPD_Control, IAU_Data,Init_parm, testing, iau_inc1, i
 
 end subroutine IAU_initialize
 
-subroutine getiauforcing(IPD_Control,IAU_Data, iau_inc)
+subroutine getiauforcing(IPD_Control,IAU_Data,Atm,mygrid )
 
    implicit none
    type (IPD_control_type), intent(in) :: IPD_Control
    type(IAU_external_data_type),  intent(inout) :: IAU_Data
-   type (IAU_external_data_type), optional,       intent(in) :: iau_inc
+   type (fv_atmos_type),allocatable, intent(inout) :: Atm(:)
+   integer,          intent(in) :: mygrid
    real(kind=kind_phys) t1,t2,sx,wx,wt,dtp
    integer n,i,j,k,sphum,kstep,nstep,itnext
 
@@ -408,11 +407,7 @@ subroutine getiauforcing(IPD_Control,IAU_Data, iau_inc)
             iau_state%inc1=iau_state%inc2
             if (is_master()) print *,'reading next increment file',trim(IPD_Control%iau_inc_files(itnext))
        !    call read_iau_forcing(IPD_Control,iau_state%inc2,'INPUT/'//trim(IPD_Control%iau_inc_files(itnext)))
-            iau_state%inc2%ua_inc(is:ie, js:je, :)=iau_inc%ua_inc(is:ie, js:je, :)
-            iau_state%inc2%va_inc(is:ie, js:je, :)=iau_inc%va_inc(is:ie, js:je, :)
-            iau_state%inc2%temp_inc(is:ie, js:je, :)=iau_inc%temp_inc(is:ie, js:je, :)
-            iau_state%inc2%delp_inc(is:ie, js:je, :)=iau_inc%delp_inc(is:ie, js:je, :)
-            iau_state%inc2%tracer_inc(is:ie, js:je, :, :)=iau_inc%tracer_inc(is:ie, js:je, :,:)
+            call read_netcdf_inc('INPUT/'//trim(IPD_Control%iau_inc_files(itnext)),iau_state%inc2,Atm,mygrid,.false.)
          endif
          call updateiauforcing(IPD_Control,IAU_Data,iau_state%wt)
       endif

@@ -113,7 +113,7 @@ list(APPEND tools_srcs
 
 list(APPEND tools_srcs_extra
   tools/fv_iau_mod.F90
-  tools/module_iau_netcdf.F90)
+  tools/module_get_cubed_sphere_inc.F90)
 
 list(APPEND driver_srcs
   driver/fvGFS/DYCORE_typedefs.F90
@@ -244,3 +244,26 @@ install(EXPORT FV3Exports
   FILE fv3-targets.cmake
   DESTINATION ${CONFIG_INSTALL_DESTINATION})
 
+set(TESTING ON)
+if(${TESTING})
+  set(hash a71a77233ee56f8533df1fc5c6d551472d42165d86313004edb3b70ddb5e82c7)
+  download_file(
+    https://epic-sandbox-srw.s3.amazonaws.com/inc-test-files.tar.gz
+    ${hash}
+  )
+  file(ARCHIVE_EXTRACT INPUT ${CMAKE_BINARY_DIR}/_deps/download_${hash}-src/inc-test-files.tar.gz DESTINATION ${CMAKE_CURRENT_BINARY_DIR} )
+  list(APPEND READ_CUBED_SPHERE_SRC tools/test/test_read.F90 )
+  list(APPEND TEST_IAU_SRC tools/test/test_iau.F90 )
+
+  add_executable(test_read ${READ_CUBED_SPHERE_SRC})
+  add_executable(test_iau ${TEST_IAU_SRC})
+
+  target_link_libraries(test_read esmf NetCDF::NetCDF_Fortran FMS::fms_r8 fv3 fv3ccpp ccpp_physics w3emc::w3emc_d bacio::bacio_4 sp::sp_d fv3atm fv3 )
+  target_link_libraries(test_iau esmf NetCDF::NetCDF_Fortran FMS::fms_r8 fv3 fv3atm fv3ccpp ccpp_physics sp::sp_d w3emc::w3emc_d bacio::bacio_4 )
+
+  target_include_directories(test_read PRIVATE ${ESMF_F90COMPILEPATHS} $<BUILD_INTERFACE:${CMAKE_CURRENT_BINARY_DIR}/mod )
+  target_include_directories(test_iau PRIVATE ${ESMF_F90COMPILEPATHS}  $<BUILD_INTERFACE:${CMAKE_CURRENT_BINARY_DIR}/mod )
+
+  add_test(NAME incRead COMMAND test_read )
+  add_test(NAME iauTest COMMAND test_iau )
+endif()
