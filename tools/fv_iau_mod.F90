@@ -135,7 +135,7 @@ subroutine IAU_initialize (IPD_Control, IAU_Data,Atm,mygrid,Init_parm, testing, 
     if(present(testing)) then
        runTests = testing
     else 
-       runTests = .true.
+       runTests = .false.
     endif
     is  = IPD_Control%isc
     ie  = is + IPD_Control%nx-1
@@ -146,7 +146,7 @@ subroutine IAU_initialize (IPD_Control, IAU_Data,Atm,mygrid,Init_parm, testing, 
     else
       call get_number_tracers(MODEL_ATMOS, num_tracers=ntracers)
     endif
-    write(6,*) 'HEY in iau_init, ntracers is',ntracers
+    write(6,*) 'HEY in iau_init, runTests, ntracers is',runTests,ntracers
     allocate (tracer_names(ntracers))
     allocate (tracer_indicies(ntracers))
     if(runTests) then
@@ -204,6 +204,7 @@ subroutine IAU_initialize (IPD_Control, IAU_Data,Atm,mygrid,Init_parm, testing, 
     deg2rad = pi/180.
 
     npz = IPD_Control%levs
+    km = npz
     fname = 'INPUT/'//trim(IPD_Control%iau_inc_files(1))
 #if 0
     if( file_exist(fname) ) then

@@ -44,15 +44,15 @@ module module_get_cubed_sphere_inc
 
   end function
   subroutine read_netcdf_inc(filename, increment_data, Atm, mygrid, &
-                          testing, im, jm, pf, tileCount, tests_passed,rc)
+                          testing, im_ret, jm_ret, pf_ret, tileCount, tests_passed,rc)
     character(*), intent(in)                         :: filename
     type(iau_internal_data_type), intent(inout)      :: increment_data
     type (fv_atmos_type), allocatable, intent(inout) :: Atm(:)
     integer, intent(in)                              :: mygrid
     logical, intent(in)                              :: testing
-    integer, optional, intent(out)                   :: im
-    integer, optional, intent(out)                   :: jm
-    integer, optional, intent(out)                   :: pf
+    integer, optional, intent(out)                   :: im_ret
+    integer, optional, intent(out)                   :: jm_ret
+    integer, optional, intent(out)                   :: pf_ret
     integer, optional, intent(out)                   :: tileCount
     logical, optional,intent(out)                    :: tests_passed
     integer, optional,intent(out)                    :: rc
@@ -74,12 +74,18 @@ module module_get_cubed_sphere_inc
 
     integer :: par_access, nvar, xtype, ndims, nAtts 
     integer :: sphum_idx, liq_wat_idx, ice_wat_idx, o3mr_idx
-    integer :: isc, iec, jsc, jec
+    integer :: isc, iec, jsc, jec, TC
+    integer :: im, jm, pf
     integer :: mytile
     integer, dimension(:), allocatable :: varids
     character(len=NF90_MAX_NAME) :: varname
 !
-    tileCount = 0
+    TC = 6
+    write(6,*) 'in read_netcdf_inc'
+    if(present(tileCount)) TC = tileCount
+    if(present(im_ret)) im = im_ret
+    if(present(jm_ret)) jm = jm_ret
+    if(present(pf_ret)) pf = pf_ret
     if(present(tests_passed)) tests_passed = .true.
     if(testing) then
       testval = 0.0
@@ -105,6 +111,7 @@ module module_get_cubed_sphere_inc
                ncid=ncid); NC_ERR_STOP(ncerr)
     end if
     ncerr = nf90_inquire(ncid, nvariables = nvar); NC_ERR_STOP(ncerr)
+    write(6,*) 'nvars is ',nvar
     allocate(varids(nvar))
     ncerr = nf90_inq_varids(ncid, nvar, varids); NC_ERR_STOP(ncerr)
     do i=1,nvar
@@ -114,46 +121,58 @@ module module_get_cubed_sphere_inc
     enddo
     !get dimensions of fields in the file
       
-      
-    varname = "grid_xt"
-    ncerr = nf90_inq_dimid(ncid, "grid_xt", im_dimid) ; NC_ERR_STOP(ncerr)
-    ncerr = nf90_inquire_dimension(ncid,im_dimid,len=im); NC_ERR_STOP(ncerr)
-    ncerr = nf90_inq_varid(ncid,varname,im_varid); NC_ERR_STOP(ncerr)
     varname = "grid_yt"
-    ncerr = nf90_inq_dimid(ncid, varname, jm_dimid) ; NC_ERR_STOP(ncerr)
-    ncerr = nf90_inq_varid(ncid,varname,jm_varid); NC_ERR_STOP(ncerr)
+    ncerr = nf90_inq_dimid(ncid, trim(varname), jm_dimid) ; NC_ERR_STOP(ncerr)
+    ncerr = nf90_inq_varid(ncid,trim(varname),jm_varid); NC_ERR_STOP(ncerr)
     ncerr = nf90_inquire_dimension(ncid,jm_dimid,len=jm); NC_ERR_STOP(ncerr)
+    write(6,*) 'got jm ',jm
+    varname = "grid_xt"
+    ncerr = nf90_inq_dimid(ncid, trim(varname), im_dimid) ; NC_ERR_STOP(ncerr)
+    write(6,*) 'im_dimid', ncerr, im_dimid
+    ncerr = nf90_inq_varid(ncid,trim(varname),im_varid); NC_ERR_STOP(ncerr)
+    write(6,*) 'im_varid', ncerr, im_varid
+    ncerr = nf90_inquire_dimension(ncid,im_dimid,len=im); NC_ERR_STOP(ncerr)
+    write(6,*) 'ncerr', ncerr
+    write(6,*) 'got im ',im
     varname = "time"
-    ncerr = nf90_inq_dimid(ncid, varname, time_dimid) ; NC_ERR_STOP(ncerr)
+    ncerr = nf90_inq_dimid(ncid, trim(varname), time_dimid) ; NC_ERR_STOP(ncerr)
     ncerr = nf90_inquire_dimension(ncid,time_dimid,len=tm); NC_ERR_STOP(ncerr)
     varname = "tile"
-    ncerr = nf90_inq_dimid(ncid, varname, tile_dimid) ; NC_ERR_STOP(ncerr)
-    ncerr = nf90_inquire_dimension(ncid,tile_dimid,len=tileCount); NC_ERR_STOP(ncerr)
+    write(6,*) 'got tm ',tm
+    ncerr = nf90_inq_dimid(ncid, trim(varname), tile_dimid) ; NC_ERR_STOP(ncerr)
+    ncerr = nf90_inquire_dimension(ncid,tile_dimid,len=TC); NC_ERR_STOP(ncerr)
     varname = "pfull"
-    ncerr = nf90_inq_dimid(ncid, varname, pfull_dimid) ; NC_ERR_STOP(ncerr)
+    write(6,*) 'got TC ',TC
+    ncerr = nf90_inq_dimid(ncid, trim(varname), pfull_dimid) ; NC_ERR_STOP(ncerr)
     ncerr = nf90_inquire_dimension(ncid,pfull_dimid,len=pf); NC_ERR_STOP(ncerr)
     varname = "phalf"
-    ncerr = nf90_inq_dimid(ncid, varname, phalf_dimid) ; NC_ERR_STOP(ncerr)
+    write(6,*) 'got pf ',pf
+    ncerr = nf90_inq_dimid(ncid, trim(varname), phalf_dimid) ; NC_ERR_STOP(ncerr)
     ncerr = nf90_inquire_dimension(ncid,phalf_dimid,len=ph); NC_ERR_STOP(ncerr)
 
+    if(present(im_ret)) im_ret = im
+    if(present(jm_ret)) jm_ret = jm
+    if(present(pf_ret)) pf_ret = pf
+    if(present(tileCount)) tileCount = TC
     !get the variable id's we will need for each variable to be retrieved
     !TODO? put this in an indexed array?
     varname = "ice_wat"
-    ncerr = nf90_inq_varid(ncid,varname,icewat_varid); NC_ERR_STOP(ncerr); NC_ERR_STOP(ncerr)
+    ncerr = nf90_inq_varid(ncid,trim(varname),icewat_varid); NC_ERR_STOP(ncerr); NC_ERR_STOP(ncerr)
     varname = "liq_wat"
-    ncerr = nf90_inq_varid(ncid,varname,liqwat_varid); NC_ERR_STOP(ncerr); NC_ERR_STOP(ncerr)
+    ncerr = nf90_inq_varid(ncid,trim(varname),liqwat_varid); NC_ERR_STOP(ncerr); NC_ERR_STOP(ncerr)
     varname = "spfh"
-    ncerr = nf90_inq_varid(ncid,varname,sphum_varid); NC_ERR_STOP(ncerr); NC_ERR_STOP(ncerr)
+    ncerr = nf90_inq_varid(ncid,trim(varname),sphum_varid); NC_ERR_STOP(ncerr); NC_ERR_STOP(ncerr)
     varname = "o3mr"
-    ncerr = nf90_inq_varid(ncid,varname,o3mr_varid); NC_ERR_STOP(ncerr)
+    ncerr = nf90_inq_varid(ncid,trim(varname),o3mr_varid); NC_ERR_STOP(ncerr)
     varname = "ugrd"
-    ncerr = nf90_inq_varid(ncid,varname,ugrd_varid); NC_ERR_STOP(ncerr)
+    ncerr = nf90_inq_varid(ncid,trim(varname),ugrd_varid); NC_ERR_STOP(ncerr)
     varname = "vgrd"
-    ncerr = nf90_inq_varid(ncid,varname,vgrd_varid); NC_ERR_STOP(ncerr)
+    ncerr = nf90_inq_varid(ncid,trim(varname),vgrd_varid); NC_ERR_STOP(ncerr)
     varname = "dpres"
-    ncerr = nf90_inq_varid(ncid,varname,dpres_varid); NC_ERR_STOP(ncerr)
+    ncerr = nf90_inq_varid(ncid,trim(varname),dpres_varid); NC_ERR_STOP(ncerr)
     varname = "tmp"
-    ncerr = nf90_inq_varid(ncid,varname,tmp_varid); NC_ERR_STOP(ncerr)
+    ncerr = nf90_inq_varid(ncid,trim(varname),tmp_varid); NC_ERR_STOP(ncerr)
+    write(6,*) 'at allocating step',im,jm,pf,TC,tm
     if(.not. allocated(increment_data%ua_inc)) then
       ! Allocate space in increment 
       allocate(increment_data%ua_inc(im,jm,pf))
@@ -171,6 +190,7 @@ module module_get_cubed_sphere_inc
     else
       ! get the tracer index to update variables in Atm(t)%tracer_inc
       ! this in not available when on the write component
+      write(6,*) 'getting indices'
       sphum_idx   = get_tracer_index(MODEL_ATMOS, 'sphum')
       liq_wat_idx = get_tracer_index(MODEL_ATMOS, 'liq_wat')
       ice_wat_idx = get_tracer_index(MODEL_ATMOS, 'ice_wat')
@@ -178,7 +198,7 @@ module module_get_cubed_sphere_inc
     endif
     ! allocate temporary array to hold variables
     ! TODO read only what we need instead of the whole field
-    allocate(array_r8_3d_tiled(im,jm,pf,tileCount,tm))
+    allocate(array_r8_3d_tiled(im,jm,pf,TC,tm))
     isc = GFS_control%isc
     iec = GFS_control%isc+GFS_control%nx-1
     jsc = GFS_control%jsc
@@ -275,7 +295,7 @@ module module_get_cubed_sphere_inc
       call mpp_get_current_pelist(Atm(mygrid)%pelist, commID=mpi_comm)
     endif
     par = .false.
-    call read_netcdf_inc(filename, increment_data,Atm, mygrid, testing,im=im, jm=jm, pf=pf, tileCount=tileCount, tests_passed=tests_passed, rc=rc)
+    call read_netcdf_inc(filename, increment_data,Atm, mygrid, testing,im_ret=im, jm_ret=jm, pf_ret=pf, tileCount=tileCount, tests_passed=tests_passed, rc=rc)
     if(testing) then
       ! allocate 6 tiles for Atm
       write(6,*) "im, jm, etc are",im,jm,pf
@@ -417,7 +437,7 @@ module module_get_cubed_sphere_inc
     par = .false.
     ! read in 3? increments
     do i=1,3
-      call read_netcdf_inc(filenames(i), increment_data(i),Atm,mygrid,testing,im=im, jm=jm, pf=pf, tileCount=tileCount, tests_passed=tests_passed, rc=rc)
+      call read_netcdf_inc(filenames(i), increment_data(i),Atm,mygrid,testing,im_ret=im, jm_ret=jm, pf_ret=pf, tileCount=tileCount, tests_passed=tests_passed, rc=rc)
     enddo
     ! allocate space for tendencies
     allocate(tendency%ua_inc(im,jm,pf))
