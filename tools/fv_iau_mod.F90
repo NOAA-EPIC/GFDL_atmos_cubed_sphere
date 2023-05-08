@@ -108,7 +108,7 @@ module fv_iau_mod
   public IAU_initialize,getiauforcing,iau_external_data_type
 
 contains
-subroutine IAU_initialize (IPD_Control, IAU_Data,Atm,mygrid,Init_parm, testing, iau_inc1, iau_inc2)
+subroutine IAU_initialize (IPD_Control, IAU_Data,Atm,mygrid,Init_parm, testing )
 !subroutine IAU_initialize (IPD_Control)
     type (IPD_control_type), intent(in) :: IPD_Control
     type (IAU_external_data_type), intent(inout) :: IAU_Data
@@ -116,8 +116,6 @@ subroutine IAU_initialize (IPD_Control, IAU_Data,Atm,mygrid,Init_parm, testing, 
     integer,          intent(in) :: mygrid
     type (IPD_init_type),    intent(in) :: Init_parm
     logical, optional,       intent(in) :: testing
-    type (IAU_external_data_type), optional,       intent(in) :: iau_inc1
-    type (IAU_external_data_type), optional,       intent(in) :: iau_inc2
     ! local
 
     character(len=128) :: fname
@@ -299,11 +297,6 @@ subroutine IAU_initialize (IPD_Control, IAU_Data,Atm,mygrid,Init_parm, testing, 
     !call read_iau_forcing(IPD_Control,iau_state%inc1,'INPUT/'//trim(IPD_Control%iau_inc_files(1)))
     write(6,*) 'calling read_netcdf_inc with ',trim(IPD_Control%iau_inc_files(1))
     call read_netcdf_inc('INPUT/'//trim(IPD_Control%iau_inc_files(1)),iau_state%inc1,Atm,mygrid,.false.)
-!   iau_state%inc1%ua_inc(is:ie, js:je, :)=iau_inc1%ua_inc(is:ie, js:je, :)
-!   iau_state%inc1%va_inc(is:ie, js:je, :)=iau_inc1%va_inc(is:ie, js:je, :)
-!   iau_state%inc1%temp_inc(is:ie, js:je, :)=iau_inc1%temp_inc(is:ie, js:je, :)
-!   iau_state%inc1%delp_inc(is:ie, js:je, :)=iau_inc1%delp_inc(is:ie, js:je, :)
-!   iau_state%inc1%tracer_inc(is:ie, js:je, :, :)=iau_inc1%tracer_inc(is:ie, js:je, :,:)
     if (nfiles.EQ.1) then  ! only need to get incrments once since constant forcing over window
        call setiauforcing(IPD_Control,IAU_Data,iau_state%wt)
     endif
@@ -317,11 +310,6 @@ subroutine IAU_initialize (IPD_Control, IAU_Data,Atm,mygrid,Init_parm, testing, 
        iau_state%hr2=IPD_Control%iaufhrs(2)
 !      call read_iau_forcing(IPD_Control,iau_state%inc2,'INPUT/'//trim(IPD_Control%iau_inc_files(2)))
        call read_netcdf_inc('INPUT/'//trim(IPD_Control%iau_inc_files(2)),iau_state%inc2,Atm,mygrid,.false.)
-!      iau_state%inc2%ua_inc(is:ie, js:je, :)=iau_inc2%ua_inc(is:ie, js:je, :)
-!      iau_state%inc2%va_inc(is:ie, js:je, :)=iau_inc2%va_inc(is:ie, js:je, :)
-!      iau_state%inc2%temp_inc(is:ie, js:je, :)=iau_inc2%temp_inc(is:ie, js:je, :)
-!      iau_state%inc2%delp_inc(is:ie, js:je, :)=iau_inc2%delp_inc(is:ie, js:je, :)
-!      iau_state%inc2%tracer_inc(is:ie, js:je, :, :)=iau_inc2%tracer_inc(is:ie, js:je, :,:)
     endif
 !   print*,'in IAU init',dt,rdt
     IAU_data%drymassfixer = IPD_control%iau_drymassfixer

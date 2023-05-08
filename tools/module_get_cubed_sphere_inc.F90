@@ -98,6 +98,7 @@ module module_get_cubed_sphere_inc
       mype = mpp_pe()
       call mpp_get_current_pelist(Atm(mygrid)%pelist, commID=mpi_comm)
     endif
+    write(6,*) "HEY, mytile is ",mytile
     par = .false.
 
     if (par) then
@@ -125,28 +126,20 @@ module module_get_cubed_sphere_inc
     ncerr = nf90_inq_dimid(ncid, trim(varname), jm_dimid) ; NC_ERR_STOP(ncerr)
     ncerr = nf90_inq_varid(ncid,trim(varname),jm_varid); NC_ERR_STOP(ncerr)
     ncerr = nf90_inquire_dimension(ncid,jm_dimid,len=jm); NC_ERR_STOP(ncerr)
-    write(6,*) 'got jm ',jm
     varname = "grid_xt"
     ncerr = nf90_inq_dimid(ncid, trim(varname), im_dimid) ; NC_ERR_STOP(ncerr)
-    write(6,*) 'im_dimid', ncerr, im_dimid
     ncerr = nf90_inq_varid(ncid,trim(varname),im_varid); NC_ERR_STOP(ncerr)
-    write(6,*) 'im_varid', ncerr, im_varid
     ncerr = nf90_inquire_dimension(ncid,im_dimid,len=im); NC_ERR_STOP(ncerr)
-    write(6,*) 'ncerr', ncerr
-    write(6,*) 'got im ',im
     varname = "time"
     ncerr = nf90_inq_dimid(ncid, trim(varname), time_dimid) ; NC_ERR_STOP(ncerr)
     ncerr = nf90_inquire_dimension(ncid,time_dimid,len=tm); NC_ERR_STOP(ncerr)
     varname = "tile"
-    write(6,*) 'got tm ',tm
     ncerr = nf90_inq_dimid(ncid, trim(varname), tile_dimid) ; NC_ERR_STOP(ncerr)
     ncerr = nf90_inquire_dimension(ncid,tile_dimid,len=TC); NC_ERR_STOP(ncerr)
     varname = "pfull"
-    write(6,*) 'got TC ',TC
     ncerr = nf90_inq_dimid(ncid, trim(varname), pfull_dimid) ; NC_ERR_STOP(ncerr)
     ncerr = nf90_inquire_dimension(ncid,pfull_dimid,len=pf); NC_ERR_STOP(ncerr)
     varname = "phalf"
-    write(6,*) 'got pf ',pf
     ncerr = nf90_inq_dimid(ncid, trim(varname), phalf_dimid) ; NC_ERR_STOP(ncerr)
     ncerr = nf90_inquire_dimension(ncid,phalf_dimid,len=ph); NC_ERR_STOP(ncerr)
 
@@ -155,7 +148,6 @@ module module_get_cubed_sphere_inc
     if(present(pf_ret)) pf_ret = pf
     if(present(tileCount)) tileCount = TC
     !get the variable id's we will need for each variable to be retrieved
-    !TODO? put this in an indexed array?
     varname = "ice_wat"
     ncerr = nf90_inq_varid(ncid,trim(varname),icewat_varid); NC_ERR_STOP(ncerr); NC_ERR_STOP(ncerr)
     varname = "liq_wat"
