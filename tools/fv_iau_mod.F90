@@ -144,7 +144,6 @@ subroutine IAU_initialize (IPD_Control, IAU_Data,Atm,mygrid,Init_parm, testing )
     else
       call get_number_tracers(MODEL_ATMOS, num_tracers=ntracers)
     endif
-    write(6,*) 'HEY in iau_init, runTests, ntracers is',runTests,ntracers
     allocate (tracer_names(ntracers))
     allocate (tracer_indicies(ntracers))
     if(runTests) then
@@ -204,58 +203,58 @@ subroutine IAU_initialize (IPD_Control, IAU_Data,Atm,mygrid,Init_parm, testing )
     npz = IPD_Control%levs
     km = npz
     fname = 'INPUT/'//trim(IPD_Control%iau_inc_files(1))
-#if 0
-    if( file_exist(fname) ) then
-      call open_ncfile( fname, ncid )        ! open the file
-      call get_ncdim1( ncid, 'lon',   im)
-      call get_ncdim1( ncid, 'lat',   jm)
-      call get_ncdim1( ncid, 'lev',   km)
-
-      if (km.ne.npz) then
-        if (is_master()) print *, 'km = ', km
-        call mpp_error(FATAL, &
-            '==> Error in IAU_initialize: km is not equal to npz')
+    if(IPD_Control%iau_gaussian) then
+      if( file_exist(fname) ) then
+        call open_ncfile( fname, ncid )        ! open the file
+        call get_ncdim1( ncid, 'lon',   im)
+        call get_ncdim1( ncid, 'lat',   jm)
+        call get_ncdim1( ncid, 'lev',   km)
+  
+        if (km.ne.npz) then
+          if (is_master()) print *, 'km = ', km
+          call mpp_error(FATAL, &
+              '==> Error in IAU_initialize: km is not equal to npz')
+        endif
+  
+        if(is_master())  write(*,*) fname, ' DA increment dimensions:', im,jm,km
+  
+        allocate (  lon(im) )
+        allocate (  lat(jm) )
+  
+        call _GET_VAR1 (ncid, 'lon', im, lon )
+        call _GET_VAR1 (ncid, 'lat', jm, lat )
+        call close_ncfile(ncid)
+  
+        ! Convert to radians
+        do i=1,im
+          lon(i) = lon(i) * deg2rad
+        enddo
+        do j=1,jm
+          lat(j) = lat(j) * deg2rad
+        enddo
+  
+      else
+        call mpp_error(FATAL,'==> Error in IAU_initialize: Expected file '&
+            //trim(fname)//' for DA increment does not exist')
       endif
-
-      if(is_master())  write(*,*) fname, ' DA increment dimensions:', im,jm,km
-
-      allocate (  lon(im) )
-      allocate (  lat(jm) )
-
-      call _GET_VAR1 (ncid, 'lon', im, lon )
-      call _GET_VAR1 (ncid, 'lat', jm, lat )
-      call close_ncfile(ncid)
-
-      ! Convert to radians
-      do i=1,im
-        lon(i) = lon(i) * deg2rad
+  
+      ! Initialize lat-lon to Cubed bi-linear interpolation coeff:
+      ! populate agrid
+  !    print*,'is,ie,js,je=',is,ie,js,ie
+  !    print*,'size xlon=',size(Init_parm%xlon(:,1)),size(Init_parm%xlon(1,:))
+  !    print*,'size agrid=',size(agrid(:,1,1)),size(agrid(1,:,1)),size(agrid(1,1,:))
+      do j = 1,size(Init_parm%xlon,2)
+        do i = 1,size(Init_parm%xlon,1)
+  !         print*,i,j,is-1+j,js-1+j
+           agrid(is-1+i,js-1+j,1)=Init_parm%xlon(i,j)
+           agrid(is-1+i,js-1+j,2)=Init_parm%xlat(i,j)
+        enddo
       enddo
-      do j=1,jm
-        lat(j) = lat(j) * deg2rad
-      enddo
-
-    else
-      call mpp_error(FATAL,'==> Error in IAU_initialize: Expected file '&
-          //trim(fname)//' for DA increment does not exist')
+      call remap_coef( is, ie, js, je, is, ie, js, je, &
+          im, jm, lon, lat, id1, id2, jdc, s2c, &
+          agrid)
+      deallocate ( lon, lat,agrid )
     endif
-
-    ! Initialize lat-lon to Cubed bi-linear interpolation coeff:
-    ! populate agrid
-!    print*,'is,ie,js,je=',is,ie,js,ie
-!    print*,'size xlon=',size(Init_parm%xlon(:,1)),size(Init_parm%xlon(1,:))
-!    print*,'size agrid=',size(agrid(:,1,1)),size(agrid(1,:,1)),size(agrid(1,1,:))
-    do j = 1,size(Init_parm%xlon,2)
-      do i = 1,size(Init_parm%xlon,1)
-!         print*,i,j,is-1+j,js-1+j
-         agrid(is-1+i,js-1+j,1)=Init_parm%xlon(i,j)
-         agrid(is-1+i,js-1+j,2)=Init_parm%xlat(i,j)
-      enddo
-    enddo
-    call remap_coef( is, ie, js, je, is, ie, js, je, &
-        im, jm, lon, lat, id1, id2, jdc, s2c, &
-        agrid)
-    deallocate ( lon, lat,agrid )
-#endif
 !mp probably need to do this
     allocate(IAU_Data%ua_inc(is:ie, js:je, km))
     allocate(IAU_Data%va_inc(is:ie, js:je, km))
@@ -263,7 +262,6 @@ subroutine IAU_initialize (IPD_Control, IAU_Data,Atm,mygrid,Init_parm, testing )
     allocate(IAU_Data%delp_inc(is:ie, js:je, km))
     allocate(IAU_Data%delz_inc(is:ie, js:je, km))
     allocate(IAU_Data%tracer_inc(is:ie, js:je, km,ntracers))
-!mp how do state and data differ? -- looks like Data is the finite diff of two states
 ! allocate arrays that will hold iau state
     allocate (iau_state%inc1%ua_inc(is:ie, js:je, km))
     allocate (iau_state%inc1%va_inc(is:ie, js:je, km))
@@ -294,9 +292,12 @@ subroutine IAU_initialize (IPD_Control, IAU_Data,Atm,mygrid,Init_parm, testing )
        enddo
        iau_state%wt_normfact = (2*nstep+1)/normfact
     endif
-    !call read_iau_forcing(IPD_Control,iau_state%inc1,'INPUT/'//trim(IPD_Control%iau_inc_files(1)))
-    write(6,*) 'calling read_netcdf_inc with ',trim(IPD_Control%iau_inc_files(1))
-    call read_netcdf_inc('INPUT/'//trim(IPD_Control%iau_inc_files(1)),iau_state%inc1,Atm,mygrid,.false.)
+    if(IPD_Control%iau_gaussian) then
+      call read_iau_forcing(IPD_Control,iau_state%inc1,'INPUT/'//trim(IPD_Control%iau_inc_files(1)))
+    else
+      write(6,*) 'calling read_netcdf_inc with ',trim(IPD_Control%iau_inc_files(1))
+      call read_netcdf_inc('INPUT/'//trim(IPD_Control%iau_inc_files(1)),iau_state%inc1,Atm,mygrid,.false.)
+    endif
     if (nfiles.EQ.1) then  ! only need to get incrments once since constant forcing over window
        call setiauforcing(IPD_Control,IAU_Data,iau_state%wt)
     endif
@@ -308,8 +309,11 @@ subroutine IAU_initialize (IPD_Control, IAU_Data,Atm,mygrid,Init_parm, testing )
        allocate (iau_state%inc2%delz_inc (is:ie, js:je, km))
        allocate (iau_state%inc2%tracer_inc(is:ie, js:je, km,ntracers))
        iau_state%hr2=IPD_Control%iaufhrs(2)
-!      call read_iau_forcing(IPD_Control,iau_state%inc2,'INPUT/'//trim(IPD_Control%iau_inc_files(2)))
-       call read_netcdf_inc('INPUT/'//trim(IPD_Control%iau_inc_files(2)),iau_state%inc2,Atm,mygrid,.false.)
+       if(IPD_Control%iau_gaussian) then
+         call read_iau_forcing(IPD_Control,iau_state%inc2,'INPUT/'//trim(IPD_Control%iau_inc_files(2)))
+       else
+         call read_netcdf_inc('INPUT/'//trim(IPD_Control%iau_inc_files(2)),iau_state%inc2,Atm,mygrid,.false.)
+       endif
     endif
 !   print*,'in IAU init',dt,rdt
     IAU_data%drymassfixer = IPD_control%iau_drymassfixer
@@ -396,8 +400,11 @@ subroutine getiauforcing(IPD_Control,IAU_Data,Atm,mygrid )
             iau_state%hr2=IPD_Control%iaufhrs(itnext)
             iau_state%inc1=iau_state%inc2
             if (is_master()) print *,'reading next increment file',trim(IPD_Control%iau_inc_files(itnext))
-       !    call read_iau_forcing(IPD_Control,iau_state%inc2,'INPUT/'//trim(IPD_Control%iau_inc_files(itnext)))
-            call read_netcdf_inc('INPUT/'//trim(IPD_Control%iau_inc_files(itnext)),iau_state%inc2,Atm,mygrid,.false.)
+            if(IPD_Control%iau_gaussian) then
+              call read_iau_forcing(IPD_Control,iau_state%inc2,'INPUT/'//trim(IPD_Control%iau_inc_files(itnext)))
+            else
+              call read_netcdf_inc('INPUT/'//trim(IPD_Control%iau_inc_files(itnext)),iau_state%inc2,Atm,mygrid,.false.)
+            endif
          endif
          call updateiauforcing(IPD_Control,IAU_Data,iau_state%wt)
       endif
