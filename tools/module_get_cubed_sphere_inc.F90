@@ -24,7 +24,7 @@ module module_get_cubed_sphere_inc
     real,allocatable :: tracer_inc(:,:,:,:)
   end type iau_internal_data_type
 
-  public read_netcdf, read_netcdf_incs, read_netcdf_inc, iau_internal_data_type
+  public read_netcdf, calc_iau_tendency, read_netcdf_inc, iau_internal_data_type
 
   logical :: par
 
@@ -35,13 +35,94 @@ module module_get_cubed_sphere_inc
     real, intent(in)     :: a
     real, intent(in)     :: b
 
-    if(abs(a - b) < 1.0e-20) then
+    if(abs(a - b) < 1.0e-22) then
        compvals = .true.
     else
        compvals = .false.
     endif
-    write(6,*) 'HEY!!! comp is ',abs(a - b),compvals
+    write(6,*) 'vals are ',a,b
+    write(6,*) 'diff is ',abs(a - b),compvals
 
+  end function
+  logical function is_tracer(varname,tracer_idx)
+    character(*), intent(in)      ::     varname
+    integer, intent(out)          ::    tracer_idx 
+    select case (varname)
+      case("liq_wat")
+        is_tracer = .true.
+        tracer_idx = get_tracer_index(MODEL_ATMOS, 'liq_wat')
+      case("ice_wat")
+        is_tracer = .true.
+        tracer_idx = get_tracer_index(MODEL_ATMOS, 'ice_wat')
+      case("rainwat")
+        is_tracer = .true.
+        tracer_idx = get_tracer_index(MODEL_ATMOS, 'rainwat')
+      case("snowwat")
+        is_tracer = .true.
+        tracer_idx = get_tracer_index(MODEL_ATMOS, 'snowwat')
+      case("spfh")
+        is_tracer = .true.
+        tracer_idx = get_tracer_index(MODEL_ATMOS, 'sphum')
+      case("sphum")
+        is_tracer = .true.
+        tracer_idx = get_tracer_index(MODEL_ATMOS, 'sphum')
+      case("spo3")
+        is_tracer = .true.
+        tracer_idx = get_tracer_index(MODEL_ATMOS, 'spo3')
+      case("o3mr")
+        is_tracer = .true.
+        tracer_idx = get_tracer_index(MODEL_ATMOS, 'o3mr')
+      case("graupel")
+        is_tracer = .true.
+        tracer_idx = get_tracer_index(MODEL_ATMOS, 'graupel')
+      case("dust1")
+        is_tracer = .true.
+        tracer_idx = get_tracer_index(MODEL_ATMOS, 'dust1')
+      case("dust2")
+        is_tracer = .true.
+        tracer_idx = get_tracer_index(MODEL_ATMOS, 'dust2')
+      case("dust3")
+        is_tracer = .true.
+        tracer_idx = get_tracer_index(MODEL_ATMOS, 'dust3')
+      case("dust4")
+        is_tracer = .true.
+        tracer_idx = get_tracer_index(MODEL_ATMOS, 'dust4')
+      case("dust5")
+        is_tracer = .true.
+        tracer_idx = get_tracer_index(MODEL_ATMOS, 'dust5')
+      case("seas1")
+        is_tracer = .true.
+        tracer_idx = get_tracer_index(MODEL_ATMOS, 'seas1')
+      case("seas2")
+        is_tracer = .true.
+        tracer_idx = get_tracer_index(MODEL_ATMOS, 'seas2')
+      case("seas3")
+        is_tracer = .true.
+        tracer_idx = get_tracer_index(MODEL_ATMOS, 'seas3')
+      case("seas4")
+        is_tracer = .true.
+        tracer_idx = get_tracer_index(MODEL_ATMOS, 'seas4')
+      case("seas5")
+        is_tracer = .true.
+        tracer_idx = get_tracer_index(MODEL_ATMOS, 'seas5')
+      case("so4")
+        is_tracer = .true.
+        tracer_idx = get_tracer_index(MODEL_ATMOS, 'so4')
+      case("bc1")
+        is_tracer = .true.
+        tracer_idx = get_tracer_index(MODEL_ATMOS, 'bc1')
+      case("bc2")
+        is_tracer = .true.
+        tracer_idx = get_tracer_index(MODEL_ATMOS, 'bc2')
+      case("oc1")
+        is_tracer = .true.
+        tracer_idx = get_tracer_index(MODEL_ATMOS, 'oc1')
+      case("oc2")
+        is_tracer = .true.
+        tracer_idx = get_tracer_index(MODEL_ATMOS, 'oc2')
+      case default
+        is_tracer = .false.
+      end select
   end function
   subroutine read_netcdf_inc(filename, increment_data, Atm, mygrid, &
                           testing, im_ret, jm_ret, pf_ret, tileCount, tests_passed,rc)
@@ -73,15 +154,18 @@ module module_get_cubed_sphere_inc
     integer :: ugrd_varid, vgrd_varid, dpres_varid, tmp_varid 
 
     integer :: par_access, nvar, xtype, ndims, nAtts 
-    integer :: sphum_idx, liq_wat_idx, ice_wat_idx, o3mr_idx
+    integer :: sphum_idx, ntcw, ntiw, ntoz, ntrw, ntsw, ntgl, ntdu1, ntdu2, ntdu3, ntdu4, ntdu5
+    integer :: ntss1, ntss2, ntss3, ntss4,ntss5, ntsu, ntbcb, ntbcl,ntocb, ntocl
     integer :: isc, iec, jsc, jec, TC
     integer :: im, jm, pf
-    integer :: mytile
+    integer :: mytile, num_tracers, idx_val, varid_val
     integer, dimension(:), allocatable :: varids
+    integer, dimension(:), allocatable :: tracer_idx
+    character(len=NF90_MAX_NAME), dimension(:), allocatable :: varnames
     character(len=NF90_MAX_NAME) :: varname
 !
     TC = 6
-    write(6,*) 'in read_netcdf_inc'
+    write(6,*) 'in read_netcdf_inc, testing is',testing
     if(present(tileCount)) TC = tileCount
     if(present(im_ret)) im = im_ret
     if(present(jm_ret)) jm = jm_ret
@@ -98,7 +182,6 @@ module module_get_cubed_sphere_inc
       mype = mpp_pe()
       call mpp_get_current_pelist(Atm(mygrid)%pelist, commID=mpi_comm)
     endif
-    write(6,*) "HEY, mytile is ",mytile
     par = .false.
 
     if (par) then
@@ -114,21 +197,35 @@ module module_get_cubed_sphere_inc
     ncerr = nf90_inquire(ncid, nvariables = nvar); NC_ERR_STOP(ncerr)
     write(6,*) 'nvars is ',nvar
     allocate(varids(nvar))
+    allocate(varnames(nvar))
+    allocate(tracer_idx(nvar)) ! we don't need it to be this large, but don't yet know how many tracers there are
     ncerr = nf90_inq_varids(ncid, nvar, varids); NC_ERR_STOP(ncerr)
+    num_tracers = 0
     do i=1,nvar
       ncerr = nf90_inquire_variable(ncid, varids(i), name=varname, xtype=xtype, ndims=ndims, nAtts=nAtts)
       NC_ERR_STOP(ncerr)
-      write(6,*) 'Name is ',trim(varname), varids(i),ndims
-    enddo
+      varnames(i) = varname
+      if(.not.(testing)) then
+        if( is_tracer(varnames(i),idx_val)) then 
+           num_tracers = num_tracers + 1
+           ! store tracer_idx by tracer number so we can iterate through 1,num_tracers later
+           tracer_idx(num_tracers) = idx_val
+           ! store/overwrite varids by tracer number so we can iterate through 1,num_tracers later
+           varids(num_tracers) = varids(i)
+        endif 
+      else
+        num_tracers=4
+      endif
+      write(6,*) 'Name is ',trim(varnames(i)), varids(i),ndims,tracer_idx(i)
+      enddo
+    write(6,*) "Number of tracers is ",num_tracers
     !get dimensions of fields in the file
       
     varname = "grid_yt"
     ncerr = nf90_inq_dimid(ncid, trim(varname), jm_dimid) ; NC_ERR_STOP(ncerr)
-    ncerr = nf90_inq_varid(ncid,trim(varname),jm_varid); NC_ERR_STOP(ncerr)
     ncerr = nf90_inquire_dimension(ncid,jm_dimid,len=jm); NC_ERR_STOP(ncerr)
     varname = "grid_xt"
     ncerr = nf90_inq_dimid(ncid, trim(varname), im_dimid) ; NC_ERR_STOP(ncerr)
-    ncerr = nf90_inq_varid(ncid,trim(varname),im_varid); NC_ERR_STOP(ncerr)
     ncerr = nf90_inquire_dimension(ncid,im_dimid,len=im); NC_ERR_STOP(ncerr)
     varname = "time"
     ncerr = nf90_inq_dimid(ncid, trim(varname), time_dimid) ; NC_ERR_STOP(ncerr)
@@ -143,19 +240,21 @@ module module_get_cubed_sphere_inc
     ncerr = nf90_inq_dimid(ncid, trim(varname), phalf_dimid) ; NC_ERR_STOP(ncerr)
     ncerr = nf90_inquire_dimension(ncid,phalf_dimid,len=ph); NC_ERR_STOP(ncerr)
 
+    ! return sizes of arrays, if requested
     if(present(im_ret)) im_ret = im
     if(present(jm_ret)) jm_ret = jm
     if(present(pf_ret)) pf_ret = pf
     if(present(tileCount)) tileCount = TC
+
     !get the variable id's we will need for each variable to be retrieved
-    varname = "ice_wat"
-    ncerr = nf90_inq_varid(ncid,trim(varname),icewat_varid); NC_ERR_STOP(ncerr); NC_ERR_STOP(ncerr)
-    varname = "liq_wat"
-    ncerr = nf90_inq_varid(ncid,trim(varname),liqwat_varid); NC_ERR_STOP(ncerr); NC_ERR_STOP(ncerr)
-    varname = "spfh"
-    ncerr = nf90_inq_varid(ncid,trim(varname),sphum_varid); NC_ERR_STOP(ncerr); NC_ERR_STOP(ncerr)
-    varname = "o3mr"
-    ncerr = nf90_inq_varid(ncid,trim(varname),o3mr_varid); NC_ERR_STOP(ncerr)
+!   varname = "ice_wat"
+!   ncerr = nf90_inq_varid(ncid,trim(varname),icewat_varid); NC_ERR_STOP(ncerr); NC_ERR_STOP(ncerr)
+!   varname = "liq_wat"
+!   ncerr = nf90_inq_varid(ncid,trim(varname),liqwat_varid); NC_ERR_STOP(ncerr); NC_ERR_STOP(ncerr)
+!   varname = "spfh"
+!   ncerr = nf90_inq_varid(ncid,trim(varname),sphum_varid); NC_ERR_STOP(ncerr); NC_ERR_STOP(ncerr)
+!   varname = "o3mr"
+!   ncerr = nf90_inq_varid(ncid,trim(varname),o3mr_varid); NC_ERR_STOP(ncerr)
     varname = "ugrd"
     ncerr = nf90_inq_varid(ncid,trim(varname),ugrd_varid); NC_ERR_STOP(ncerr)
     varname = "vgrd"
@@ -164,29 +263,37 @@ module module_get_cubed_sphere_inc
     ncerr = nf90_inq_varid(ncid,trim(varname),dpres_varid); NC_ERR_STOP(ncerr)
     varname = "tmp"
     ncerr = nf90_inq_varid(ncid,trim(varname),tmp_varid); NC_ERR_STOP(ncerr)
-    write(6,*) 'at allocating step',im,jm,pf,TC,tm
     if(.not. allocated(increment_data%ua_inc)) then
       ! Allocate space in increment 
       allocate(increment_data%ua_inc(im,jm,pf))
       allocate(increment_data%va_inc(im,jm,pf))
       allocate(increment_data%temp_inc(im,jm,pf))
       allocate(increment_data%delp_inc(im,jm,pf))
-      allocate(increment_data%tracer_inc(im,jm,pf,4)) ! currently, just need specific humdity, liq_wat, ice_wat, and o3mr
+      allocate(increment_data%tracer_inc(im,jm,pf,num_tracers)) 
     endif
     if(testing) then
       ! assign dummy indices
-      sphum_idx   = 1
-      liq_wat_idx = 2
-      ice_wat_idx = 3
-      o3mr_idx    = 4
-    else
-      ! get the tracer index to update variables in Atm(t)%tracer_inc
-      ! this in not available when on the write component
-      write(6,*) 'getting indices'
-      sphum_idx   = get_tracer_index(MODEL_ATMOS, 'sphum')
-      liq_wat_idx = get_tracer_index(MODEL_ATMOS, 'liq_wat')
-      ice_wat_idx = get_tracer_index(MODEL_ATMOS, 'ice_wat')
-      o3mr_idx    = get_tracer_index(MODEL_ATMOS, 'o3mr')
+      varname = "ice_wat"
+      ncerr = nf90_inq_varid(ncid,trim(varname),icewat_varid); NC_ERR_STOP(ncerr); NC_ERR_STOP(ncerr)
+      varname = "liq_wat"
+      ncerr = nf90_inq_varid(ncid,trim(varname),liqwat_varid); NC_ERR_STOP(ncerr); NC_ERR_STOP(ncerr)
+      varname = "spfh"
+      ncerr = nf90_inq_varid(ncid,trim(varname),sphum_varid); NC_ERR_STOP(ncerr); NC_ERR_STOP(ncerr)
+      varname = "o3mr"
+      ncerr = nf90_inq_varid(ncid,trim(varname),o3mr_varid); NC_ERR_STOP(ncerr)
+      varids(1) = sphum_varid ! spfh
+      varids(2) = icewat_varid ! ice_wat
+      varids(3) = liqwat_varid ! liq_wat
+      varids(4) = o3mr_varid ! o3mr
+      tracer_idx(1) = 1
+      tracer_idx(2) = 2
+      tracer_idx(3) = 3
+      tracer_idx(4) = 4
+      write(6,*) 'test varid is ',varids(1),' tracer_idx is ',tracer_idx(1)
+      write(6,*) 'test varid is ',varids(2),' tracer_idx is ',tracer_idx(2)
+      write(6,*) 'test varid is ',varids(3),' tracer_idx is ',tracer_idx(3)
+      write(6,*) 'test varid is ',varids(4),' tracer_idx is ',tracer_idx(4)
+      ! for non-testing, indices were returned from check for is_tracer
     endif
     ! allocate temporary array to hold variables
     ! TODO read only what we need instead of the whole field
@@ -212,21 +319,11 @@ module module_get_cubed_sphere_inc
     ncerr = nf90_get_var(ncid, dpres_varid, array_r8_3d_tiled) ; NC_ERR_STOP(ncerr)
     increment_data%delp_inc(isc:iec,jsc:jec,:) = array_r8_3d_tiled(isc:iec,jsc:jec,:,mytile,1)
 
-    !Update sphum
-    ncerr = nf90_get_var(ncid, sphum_varid, array_r8_3d_tiled) ; NC_ERR_STOP(ncerr)
-    increment_data%tracer_inc(isc:iec,jsc:jec,:,sphum_idx) = array_r8_3d_tiled(isc:iec,jsc:jec,:,mytile,1)
-
-    !Update ice_wat
-    ncerr = nf90_get_var(ncid, icewat_varid, array_r8_3d_tiled) ; NC_ERR_STOP(ncerr)
-    increment_data%tracer_inc(isc:iec,jsc:jec,:,ice_wat_idx) = array_r8_3d_tiled(isc:iec,jsc:jec,:,mytile,1)
-
-    !Update liq_wat
-    ncerr = nf90_get_var(ncid, liqwat_varid, array_r8_3d_tiled) ; NC_ERR_STOP(ncerr)
-    increment_data%tracer_inc(isc:iec,jsc:jec,:,liq_wat_idx) = array_r8_3d_tiled(isc:iec,jsc:jec,:,mytile,1)
-
-    !Update o3mr 
-    ncerr = nf90_get_var(ncid, o3mr_varid, array_r8_3d_tiled) ; NC_ERR_STOP(ncerr)
-    increment_data%tracer_inc(isc:iec,jsc:jec,:,o3mr_idx) = array_r8_3d_tiled(isc:iec,jsc:jec,:,mytile,1)
+    do i = 1,num_tracers
+      write(6,*) 'varid is ',varids(i),' tracer_idx is ',tracer_idx(i)
+      ncerr = nf90_get_var(ncid, varids(i), array_r8_3d_tiled) ; NC_ERR_STOP(ncerr)
+      increment_data%tracer_inc(isc:iec,jsc:jec,:,tracer_idx(i)) = array_r8_3d_tiled(isc:iec,jsc:jec,:,mytile,1)
+    enddo
 
     deallocate(array_r8_3d_tiled)
   
@@ -262,7 +359,7 @@ module module_get_cubed_sphere_inc
     integer :: ugrd_varid, vgrd_varid, dpres_varid, tmp_varid 
 
     integer :: par_access, nvar, xtype, ndims, nAtts 
-    integer :: sphum_idx, liq_wat_idx, ice_wat_idx, o3mr_idx
+    integer :: sphum_idx, ntcw, ntiw, ntoz
     integer :: isc, iec, jsc, jec
     integer :: mytile
     integer, dimension(:), allocatable :: varids
@@ -294,9 +391,9 @@ module module_get_cubed_sphere_inc
       allocate(Atm(6))
       ! assign dummy indices
       sphum_idx   = 1
-      liq_wat_idx = 2
-      ice_wat_idx = 3
-      o3mr_idx    = 4
+      ntiw = 2
+      ntcw = 3
+      ntoz    = 4
       ! Allocate space in Atm for testing 
       do i=1,tileCount
         allocate(Atm(i)%u(im,jm,pf))
@@ -314,9 +411,9 @@ module module_get_cubed_sphere_inc
       ! get the tracer index to update variables in Atm(t)%tracer_inc
       ! this in not available when on the write component
       sphum_idx   = get_tracer_index(MODEL_ATMOS, 'sphum')
-      liq_wat_idx = get_tracer_index(MODEL_ATMOS, 'liq_wat')
-      ice_wat_idx = get_tracer_index(MODEL_ATMOS, 'ice_wat')
-      o3mr_idx    = get_tracer_index(MODEL_ATMOS, 'o3mr')
+      ntiw = get_tracer_index(MODEL_ATMOS, 'ice_wat')
+      ntcw = get_tracer_index(MODEL_ATMOS, 'liq_wat')
+      ntoz    = get_tracer_index(MODEL_ATMOS, 'o3mr')
     endif
     isc = GFS_control%isc
     iec = GFS_control%isc+GFS_control%nx-1
@@ -343,24 +440,24 @@ module module_get_cubed_sphere_inc
       testval * increment_data%tracer_inc(isc:iec,jsc:jec,:,sphum_idx)
 
     !Update ice_wat
-    Atm(mygrid)%q(isc:iec,jsc:jec,:,ice_wat_idx) = Atm(mygrid)%q(isc:iec,jsc:jec,:,ice_wat_idx) + &
-      testval * increment_data%tracer_inc(isc:iec,jsc:jec,:,ice_wat_idx)
+    Atm(mygrid)%q(isc:iec,jsc:jec,:,ntiw) = Atm(mygrid)%q(isc:iec,jsc:jec,:,ntiw) + &
+      testval * increment_data%tracer_inc(isc:iec,jsc:jec,:,ntiw)
 
     !Update liq_wat
-    Atm(mygrid)%q(isc:iec,jsc:jec,:,liq_wat_idx) = Atm(mygrid)%q(isc:iec,jsc:jec,:,liq_wat_idx) + &
-      testval * increment_data%tracer_inc(isc:iec,jsc:jec,:,liq_wat_idx)
+    Atm(mygrid)%q(isc:iec,jsc:jec,:,ntcw) = Atm(mygrid)%q(isc:iec,jsc:jec,:,ntcw) + &
+      testval * increment_data%tracer_inc(isc:iec,jsc:jec,:,ntcw)
     !Update o3mr 
-    Atm(mygrid)%q(isc:iec,jsc:jec,:,o3mr_idx) = Atm(mygrid)%q(isc:iec,jsc:jec,:,o3mr_idx) + &
-      testval * increment_data%tracer_inc(isc:iec,jsc:jec,:,o3mr_idx)
+    Atm(mygrid)%q(isc:iec,jsc:jec,:,ntoz) = Atm(mygrid)%q(isc:iec,jsc:jec,:,ntoz) + &
+      testval * increment_data%tracer_inc(isc:iec,jsc:jec,:,ntoz)
 
     if(testing) then
         tests_passed = tests_passed .and. compvals(increment_data%ua_inc(isc,jsc,1) ,-1.8169951587765354E-007)
         tests_passed = tests_passed .and. compvals(increment_data%va_inc(isc,jsc,1) , 3.0927015537418612E-007) 
         tests_passed = tests_passed .and. compvals(increment_data%delp_inc(isc,jsc,1), -1.8873791418627661E-015)
         tests_passed = tests_passed .and. compvals(increment_data%temp_inc(isc,jsc,1) , -6.8499218741635559E-008)
-        tests_passed = tests_passed .and. compvals(increment_data%tracer_inc(isc,jsc,1,ice_wat_idx) , -4.4666691960233954E-019)
-        tests_passed = tests_passed .and. compvals(increment_data%tracer_inc(isc,jsc,1,liq_wat_idx) , -7.3514147181582930E-022)
-        tests_passed = tests_passed .and. compvals(increment_data%tracer_inc(isc,jsc,1,o3mr_idx) , -1.2690141736645521E-017)
+        tests_passed = tests_passed .and. compvals(increment_data%tracer_inc(isc,jsc,1,ntiw) , -4.4666691960233954E-019)
+        tests_passed = tests_passed .and. compvals(increment_data%tracer_inc(isc,jsc,1,ntcw) , -7.3514147181582930E-022)
+        tests_passed = tests_passed .and. compvals(increment_data%tracer_inc(isc,jsc,1,ntoz) , -1.2690141736645521E-017)
         tests_passed = tests_passed .and. compvals(increment_data%tracer_inc(isc,jsc,1,sphum_idx) , -2.9569591390493574E-006)
 
       do i=1,tileCount
@@ -374,24 +471,23 @@ module module_get_cubed_sphere_inc
     endif 
       
   end subroutine read_netcdf
-  subroutine read_netcdf_incs(filenames, &
+  subroutine calc_iau_tendency(filenames, &
                           Atm, mygrid, &
-                          use_parallel_netcdf, &
-                          testing, tests_passed, rc)
+                          tendency, increment, &
+                          testing, rc)
 !
     character(len=128), dimension(3), intent(in) :: filenames
     type (fv_atmos_type), allocatable, intent(inout) :: Atm(:)
     integer,                             intent(in) :: mygrid
-    logical, intent(in)                             :: use_parallel_netcdf
-    logical, intent(in)                             :: testing
-    logical, intent(out),optional                   :: tests_passed
+    type(iau_internal_data_type), intent(inout)     :: tendency
+    type(iau_internal_data_type), intent(out),optional :: increment
+    logical, intent(in), optional                   :: testing
     integer, intent(out),optional                   :: rc
 !
 !** local vars
     integer :: mpi_comm
     integer :: mype
     type(iau_internal_data_type)               :: increment_data(3)
-    type(iau_internal_data_type)               :: tendency
     integer :: i,j,k
     integer :: im, jm
 
@@ -407,15 +503,19 @@ module module_get_cubed_sphere_inc
     integer :: ugrd_varid, vgrd_varid, dpres_varid, tmp_varid 
 
     integer :: par_access, nvar, xtype, ndims, nAtts 
-    integer :: sphum_idx, liq_wat_idx, ice_wat_idx, o3mr_idx
+    integer :: sphum_idx, ntcw, ntiw, ntoz, ntrw, ntsw, ntgl, ntdu1, ntdu2, ntdu3, ntdu4, ntdu5
+    integer :: ntss1, ntss2, ntss3, ntss4,ntss5, ntsu, ntbcb, ntbcl,ntocb, ntocl
     integer :: isc, iec, jsc, jec
     integer :: mytile
     real :: dt_atmos
     integer, dimension(:), allocatable :: varids
     character(len=NF90_MAX_NAME) :: varname
+    logical do_testing
 
+    do_testing = .false.
     dt_atmos = 250.
-    if(testing) then
+    if(present(testing)) do_testing=testing
+    if(do_testing) then
       testval = 0.0
       mytile = 1
       mype = 0
@@ -429,29 +529,23 @@ module module_get_cubed_sphere_inc
     par = .false.
     ! read in 3? increments
     do i=1,3
-      call read_netcdf_inc(filenames(i), increment_data(i),Atm,mygrid,testing,im_ret=im, jm_ret=jm, pf_ret=pf, tileCount=tileCount, tests_passed=tests_passed, rc=rc)
+      call read_netcdf_inc(filenames(i), increment_data(i),Atm,mygrid,do_testing,im_ret=im, jm_ret=jm, pf_ret=pf, tileCount=tileCount, rc=rc)
     enddo
     ! allocate space for tendencies
     allocate(tendency%ua_inc(im,jm,pf))
     allocate(tendency%va_inc(im,jm,pf))
     allocate(tendency%temp_inc(im,jm,pf))
     allocate(tendency%delp_inc(im,jm,pf))
-    allocate(tendency%tracer_inc(im,jm,pf,4)) ! currently, just need specific humdity, liq_wat, ice_wat, and o3mr
+    allocate(tendency%tracer_inc(im,jm,pf,size(increment_data(1)%tracer_inc,4))) 
     ! Calculate the tendencies by subtracting the first increment from the second and dividing by dt_atmos
+    if(present(increment)) increment = increment_data(2)
     tendency%ua_inc(:,:,:) = (increment_data(2)%ua_inc(:,:,:) - increment_data(1)%ua_inc(:,:,:))/dt_atmos
     tendency%va_inc(:,:,:) = (increment_data(2)%va_inc(:,:,:) - increment_data(1)%va_inc(:,:,:))/dt_atmos
     tendency%temp_inc(:,:,:) = (increment_data(2)%temp_inc(:,:,:) - increment_data(1)%temp_inc(:,:,:))/dt_atmos
     tendency%delp_inc(:,:,:) = (increment_data(2)%delp_inc(:,:,:) - increment_data(1)%delp_inc(:,:,:))/dt_atmos
     tendency%tracer_inc(:,:,:,:) = (increment_data(2)%tracer_inc(:,:,:,:) - increment_data(1)%tracer_inc(:,:,:,:))/dt_atmos
 
-    write(6,*) 'dt_atmos is ', dt_atmos, mygrid
-    write(6,*) increment_data(2)%ua_inc(1,1,1) 
-    write(6,*) increment_data(2)%ua_inc(11,1,1) 
-    write(6,*) tendency%ua_inc(1,1,1)*dt_atmos/increment_data(2)%ua_inc(1,1,1)
-    write(6,*) tendency%ua_inc(11,1,1)*dt_atmos/increment_data(2)%ua_inc(11,1,1)
-    write(6,*) tendency%ua_inc(20,11,100)*dt_atmos/increment_data(2)%ua_inc(20,11,100)
-    write(6,*) tendency%ua_inc(81,91,15)*dt_atmos/increment_data(2)%ua_inc(81,91,15)
-  end subroutine read_netcdf_incs
+  end subroutine calc_iau_tendency
   
   
 !----------------------------------------------------------------------------------------
