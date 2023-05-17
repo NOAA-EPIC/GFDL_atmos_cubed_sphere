@@ -247,14 +247,6 @@ module module_get_cubed_sphere_inc
     if(present(tileCount)) tileCount = TC
 
     !get the variable id's we will need for each variable to be retrieved
-!   varname = "ice_wat"
-!   ncerr = nf90_inq_varid(ncid,trim(varname),icewat_varid); NC_ERR_STOP(ncerr); NC_ERR_STOP(ncerr)
-!   varname = "liq_wat"
-!   ncerr = nf90_inq_varid(ncid,trim(varname),liqwat_varid); NC_ERR_STOP(ncerr); NC_ERR_STOP(ncerr)
-!   varname = "spfh"
-!   ncerr = nf90_inq_varid(ncid,trim(varname),sphum_varid); NC_ERR_STOP(ncerr); NC_ERR_STOP(ncerr)
-!   varname = "o3mr"
-!   ncerr = nf90_inq_varid(ncid,trim(varname),o3mr_varid); NC_ERR_STOP(ncerr)
     varname = "ugrd"
     ncerr = nf90_inq_varid(ncid,trim(varname),ugrd_varid); NC_ERR_STOP(ncerr)
     varname = "vgrd"
@@ -289,6 +281,7 @@ module module_get_cubed_sphere_inc
       tracer_idx(2) = 2
       tracer_idx(3) = 3
       tracer_idx(4) = 4
+      tracer_idx(5) = 5
       write(6,*) 'test varid is ',varids(1),' tracer_idx is ',tracer_idx(1)
       write(6,*) 'test varid is ',varids(2),' tracer_idx is ',tracer_idx(2)
       write(6,*) 'test varid is ',varids(3),' tracer_idx is ',tracer_idx(3)
@@ -321,8 +314,10 @@ module module_get_cubed_sphere_inc
 
     do i = 1,num_tracers
       write(6,*) 'varid is ',varids(i),' tracer_idx is ',tracer_idx(i)
-      ncerr = nf90_get_var(ncid, varids(i), array_r8_3d_tiled) ; NC_ERR_STOP(ncerr)
-      increment_data%tracer_inc(isc:iec,jsc:jec,:,tracer_idx(i)) = array_r8_3d_tiled(isc:iec,jsc:jec,:,mytile,1)
+      if((tracer_idx(i) > 0) .and. (tracer_idx(i) <= num_tracers)) then
+        ncerr = nf90_get_var(ncid, varids(i), array_r8_3d_tiled) ; NC_ERR_STOP(ncerr)
+        increment_data%tracer_inc(isc:iec,jsc:jec,:,tracer_idx(i)) = array_r8_3d_tiled(isc:iec,jsc:jec,:,mytile,1)
+      endif
     enddo
 
     deallocate(array_r8_3d_tiled)
