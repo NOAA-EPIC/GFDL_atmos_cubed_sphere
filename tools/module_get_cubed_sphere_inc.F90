@@ -247,13 +247,17 @@ module module_get_cubed_sphere_inc
     if(present(tileCount)) tileCount = TC
 
     !get the variable id's we will need for each variable to be retrieved
-    varname = "ugrd"
+!   varname = "ugrd"
+    varname = "ua"
     ncerr = nf90_inq_varid(ncid,trim(varname),ugrd_varid); NC_ERR_STOP(ncerr)
-    varname = "vgrd"
+!   varname = "vgrd"
+    varname = "va"
     ncerr = nf90_inq_varid(ncid,trim(varname),vgrd_varid); NC_ERR_STOP(ncerr)
-    varname = "dpres"
+!   varname = "dpres"
+    varname = "DELP"
     ncerr = nf90_inq_varid(ncid,trim(varname),dpres_varid); NC_ERR_STOP(ncerr)
-    varname = "tmp"
+!   varname = "tmp"
+    varname = "T"
     ncerr = nf90_inq_varid(ncid,trim(varname),tmp_varid); NC_ERR_STOP(ncerr)
     if(.not. allocated(increment_data%ua_inc)) then
       ! Allocate space in increment 
