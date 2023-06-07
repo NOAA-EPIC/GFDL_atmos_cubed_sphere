@@ -24,6 +24,13 @@ module module_get_cubed_sphere_inc
     real,allocatable :: tracer_inc(:,:,:,:)
   end type iau_internal_data_type
 
+  type netcdf_data
+    character(len=NF90_MAX_NAME) :: varname
+    integer                      :: varid
+    integer                      :: dimid
+    integer                      :: dimsize
+  end type netcdf_data
+
   public read_netcdf, calc_iau_tendency, read_netcdf_inc, iau_internal_data_type
 
   logical :: par
@@ -163,6 +170,7 @@ module module_get_cubed_sphere_inc
     integer, dimension(:), allocatable :: tracer_idx
     character(len=NF90_MAX_NAME), dimension(:), allocatable :: varnames
     character(len=NF90_MAX_NAME) :: varname
+    type(netcdf_data), allocatable    :: incvars(:)    
 !
     TC = 6
     write(6,*) 'in read_netcdf_inc, testing is',testing
@@ -196,17 +204,17 @@ module module_get_cubed_sphere_inc
     end if
     ncerr = nf90_inquire(ncid, nvariables = nvar); NC_ERR_STOP(ncerr)
     write(6,*) 'nvars is ',nvar
+    allocate(incvars(nvar))
     allocate(varids(nvar))
-    allocate(varnames(nvar))
     allocate(tracer_idx(nvar)) ! we don't need it to be this large, but don't yet know how many tracers there are
     ncerr = nf90_inq_varids(ncid, nvar, varids); NC_ERR_STOP(ncerr)
     num_tracers = 0
     do i=1,nvar
       ncerr = nf90_inquire_variable(ncid, varids(i), name=varname, xtype=xtype, ndims=ndims, nAtts=nAtts)
       NC_ERR_STOP(ncerr)
-      varnames(i) = varname
+      incvars(i)%varname = varname
       if(.not.(testing)) then
-        if( is_tracer(varnames(i),idx_val)) then 
+        if( is_tracer(incvars(i)%varname,idx_val)) then 
            num_tracers = num_tracers + 1
            ! store tracer_idx by tracer number so we can iterate through 1,num_tracers later
            tracer_idx(num_tracers) = idx_val
@@ -216,11 +224,10 @@ module module_get_cubed_sphere_inc
       else
         num_tracers=4
       endif
-      write(6,*) 'Name is ',trim(varnames(i)), varids(i),ndims,tracer_idx(i)
+      incvars(i)%varid = varids(i)
       enddo
     write(6,*) "Number of tracers is ",num_tracers
     !get dimensions of fields in the file
-      
     varname = "grid_yt"
     ncerr = nf90_inq_dimid(ncid, trim(varname), jm_dimid) ; NC_ERR_STOP(ncerr)
     ncerr = nf90_inquire_dimension(ncid,jm_dimid,len=jm); NC_ERR_STOP(ncerr)
@@ -246,19 +253,6 @@ module module_get_cubed_sphere_inc
     if(present(pf_ret)) pf_ret = pf
     if(present(tileCount)) tileCount = TC
 
-    !get the variable id's we will need for each variable to be retrieved
-!   varname = "ugrd"
-    varname = "ua"
-    ncerr = nf90_inq_varid(ncid,trim(varname),ugrd_varid); NC_ERR_STOP(ncerr)
-!   varname = "vgrd"
-    varname = "va"
-    ncerr = nf90_inq_varid(ncid,trim(varname),vgrd_varid); NC_ERR_STOP(ncerr)
-!   varname = "dpres"
-    varname = "DELP"
-    ncerr = nf90_inq_varid(ncid,trim(varname),dpres_varid); NC_ERR_STOP(ncerr)
-!   varname = "tmp"
-    varname = "T"
-    ncerr = nf90_inq_varid(ncid,trim(varname),tmp_varid); NC_ERR_STOP(ncerr)
     if(.not. allocated(increment_data%ua_inc)) then
       ! Allocate space in increment 
       allocate(increment_data%ua_inc(im,jm,pf))
@@ -299,23 +293,36 @@ module module_get_cubed_sphere_inc
     iec = GFS_control%isc+GFS_control%nx-1
     jsc = GFS_control%jsc
     jec = GFS_control%jsc+GFS_control%ny-1
-    !Read u
-    ncerr = nf90_get_var(ncid, ugrd_varid, array_r8_3d_tiled) ; NC_ERR_STOP(ncerr)
-    increment_data%ua_inc(isc:iec,jsc:jec,:) = array_r8_3d_tiled(isc:iec,jsc:jec,:,mytile,1)
-    write(6,*) 'reading u',increment_data%ua_inc(isc,jsc,1) 
-    
-    !Read v
-    ncerr = nf90_get_var(ncid, vgrd_varid, array_r8_3d_tiled) ; NC_ERR_STOP(ncerr)
-    increment_data%va_inc(isc:iec,jsc:jec,:) = array_r8_3d_tiled(isc:iec,jsc:jec,:,mytile,1)
 
-    !Read potential temp
-    ncerr = nf90_get_var(ncid, tmp_varid, array_r8_3d_tiled) ; NC_ERR_STOP(ncerr)
-    increment_data%temp_inc(isc:iec,jsc:jec,:) = array_r8_3d_tiled(isc:iec,jsc:jec,:,mytile,1)
 
-    !Read delp
-    ncerr = nf90_get_var(ncid, dpres_varid, array_r8_3d_tiled) ; NC_ERR_STOP(ncerr)
-    increment_data%delp_inc(isc:iec,jsc:jec,:) = array_r8_3d_tiled(isc:iec,jsc:jec,:,mytile,1)
-
+    do i = 1,nvar
+      select case (incvars(i)%varname)
+        case("ugrd")
+          ncerr = nf90_get_var(ncid, incvars(i)%varid, array_r8_3d_tiled) ; NC_ERR_STOP(ncerr)
+          increment_data%ua_inc(isc:iec,jsc:jec,:) = array_r8_3d_tiled(isc:iec,jsc:jec,:,mytile,1)
+        case("ua")
+          ncerr = nf90_get_var(ncid, incvars(i)%varid, array_r8_3d_tiled) ; NC_ERR_STOP(ncerr)
+          increment_data%ua_inc(isc:iec,jsc:jec,:) = array_r8_3d_tiled(isc:iec,jsc:jec,:,mytile,1)
+        case("vgrd")
+          ncerr = nf90_get_var(ncid, incvars(i)%varid, array_r8_3d_tiled) ; NC_ERR_STOP(ncerr)
+          increment_data%va_inc(isc:iec,jsc:jec,:) = array_r8_3d_tiled(isc:iec,jsc:jec,:,mytile,1)
+        case("va")
+          ncerr = nf90_get_var(ncid, incvars(i)%varid, array_r8_3d_tiled) ; NC_ERR_STOP(ncerr)
+          increment_data%va_inc(isc:iec,jsc:jec,:) = array_r8_3d_tiled(isc:iec,jsc:jec,:,mytile,1)
+        case("tmp")
+          ncerr = nf90_get_var(ncid, incvars(i)%varid, array_r8_3d_tiled) ; NC_ERR_STOP(ncerr)
+          increment_data%temp_inc(isc:iec,jsc:jec,:) = array_r8_3d_tiled(isc:iec,jsc:jec,:,mytile,1)
+        case("T")
+          ncerr = nf90_get_var(ncid, incvars(i)%varid, array_r8_3d_tiled) ; NC_ERR_STOP(ncerr)
+          increment_data%temp_inc(isc:iec,jsc:jec,:) = array_r8_3d_tiled(isc:iec,jsc:jec,:,mytile,1)
+        case("dpres")
+          ncerr = nf90_get_var(ncid, incvars(i)%varid, array_r8_3d_tiled) ; NC_ERR_STOP(ncerr)
+          increment_data%delp_inc(isc:iec,jsc:jec,:) = array_r8_3d_tiled(isc:iec,jsc:jec,:,mytile,1)
+        case("DELP")
+          ncerr = nf90_get_var(ncid, incvars(i)%varid, array_r8_3d_tiled) ; NC_ERR_STOP(ncerr)
+          increment_data%delp_inc(isc:iec,jsc:jec,:) = array_r8_3d_tiled(isc:iec,jsc:jec,:,mytile,1)
+      end select
+    enddo
     do i = 1,num_tracers
       write(6,*) 'varid is ',varids(i),' tracer_idx is ',tracer_idx(i)
       if((tracer_idx(i) > 0) .and. (tracer_idx(i) <= num_tracers)) then
@@ -325,6 +332,9 @@ module module_get_cubed_sphere_inc
     enddo
 
     deallocate(array_r8_3d_tiled)
+    deallocate(incvars)
+    deallocate(varids)
+    deallocate(tracer_idx)
   
   end subroutine read_netcdf_inc
   subroutine read_netcdf(filename, Atm, mygrid, &

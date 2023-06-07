@@ -108,7 +108,7 @@ module fv_iau_mod
   public IAU_initialize,getiauforcing,iau_external_data_type
 
 contains
-subroutine IAU_initialize (IPD_Control, IAU_Data,Atm,mygrid,Init_parm, testing )
+subroutine IAU_initialize (IPD_Control, IAU_Data, Atm, mygrid, Init_parm, testing )
 !subroutine IAU_initialize (IPD_Control)
     type (IPD_control_type), intent(in) :: IPD_Control
     type (IAU_external_data_type), intent(inout) :: IAU_Data
@@ -240,12 +240,12 @@ subroutine IAU_initialize (IPD_Control, IAU_Data,Atm,mygrid,Init_parm, testing )
   
       ! Initialize lat-lon to Cubed bi-linear interpolation coeff:
       ! populate agrid
-  !    print*,'is,ie,js,je=',is,ie,js,ie
-  !    print*,'size xlon=',size(Init_parm%xlon(:,1)),size(Init_parm%xlon(1,:))
-  !    print*,'size agrid=',size(agrid(:,1,1)),size(agrid(1,:,1)),size(agrid(1,1,:))
+!      print*,'is,ie,js,je=',is,ie,js,ie
+!      print*,'size xlon=',size(Init_parm%xlon(:,1)),size(Init_parm%xlon(1,:))
+!      print*,'size agrid=',size(agrid(:,1,1)),size(agrid(1,:,1)),size(agrid(1,1,:))
       do j = 1,size(Init_parm%xlon,2)
         do i = 1,size(Init_parm%xlon,1)
-  !         print*,i,j,is-1+j,js-1+j
+!           print*,i,j,is-1+j,js-1+j
            agrid(is-1+i,js-1+j,1)=Init_parm%xlon(i,j)
            agrid(is-1+i,js-1+j,2)=Init_parm%xlat(i,j)
         enddo
@@ -255,6 +255,7 @@ subroutine IAU_initialize (IPD_Control, IAU_Data,Atm,mygrid,Init_parm, testing )
           agrid)
       deallocate ( lon, lat,agrid )
     endif
+
 !mp probably need to do this
     allocate(IAU_Data%ua_inc(is:ie, js:je, km))
     allocate(IAU_Data%va_inc(is:ie, js:je, km))
