@@ -9,6 +9,21 @@ project(FV3
 list(APPEND CMAKE_MODULE_PATH ${CMAKE_CURRENT_SOURCE_DIR}/cmake)
 
 include(GNUInstallDirs)
+include(CTest)
+include(FetchContent)
+
+function(download_file url hash)
+
+message("downloading test data")
+FetchContent_Declare(download_${hash}
+URL ${url}
+URL_HASH SHA256=${hash}
+DOWNLOAD_NO_EXTRACT true
+TLS_VERIFY true
+)
+FetchContent_Populate(download_${hash})
+
+endfunction(download_file)
 
 if(NOT CMAKE_BUILD_TYPE MATCHES "^(Debug|Release|Repro|MinSizeRel|RelWithDebInfo)$")
   message(STATUS "No build type specified.")
