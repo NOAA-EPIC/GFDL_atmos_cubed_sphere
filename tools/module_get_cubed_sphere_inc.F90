@@ -128,6 +128,8 @@ module module_get_cubed_sphere_inc
         is_tracer = .true.
         tracer_idx = get_tracer_index(MODEL_ATMOS, 'oc2')
       case default
+        tracer_idx = get_tracer_index(MODEL_ATMOS, trim(varname))
+        write(6,*) 'tracer index is ',tracer_idx,' and name is ',trim(varname)
         is_tracer = .false.
       end select
   end function
@@ -214,7 +216,9 @@ module module_get_cubed_sphere_inc
       NC_ERR_STOP(ncerr)
       incvars(i)%varname = varname
       if(.not.(testing)) then
-        if( is_tracer(incvars(i)%varname,idx_val)) then 
+        idx_val = get_tracer_index(MODEL_ATMOS, trim(incvars(i)%varname))
+        if((idx_val > 0 ).and.(idx_val <= nvar)) then
+!       if( is_tracer(incvars(i)%varname,idx_val)) then 
            num_tracers = num_tracers + 1
            ! store tracer_idx by tracer number so we can iterate through 1,num_tracers later
            tracer_idx(num_tracers) = idx_val

@@ -388,7 +388,7 @@ contains
 
     allocate(pes(mpp_npes()))
     call mpp_get_current_pelist(pes)
-
+    Atm(1)%flagstruct%ignore_rst_cksum = .true.
     suffix = ''
     fname = 'INPUT/fv_core.res.nc'
     Atm(1)%Fv_restart_is_open = open_file(Atm(1)%Fv_restart,fname,"read", is_restart=.true., pelist=pes)
@@ -419,6 +419,7 @@ contains
     Atm(1)%Fv_restart_tile_is_open = open_file(Atm(1)%Fv_restart_tile, fname, "read", fv_domain, is_restart=.true.)
     if (Atm(1)%Fv_restart_tile_is_open) then
       call fv_io_register_restart(Atm(1))
+      write(6,*) 'HEYYYYY!!!! ignore chksum is ',Atm(1)%flagstruct%ignore_rst_cksum
       call read_restart(Atm(1)%Fv_restart_tile, ignore_checksum=Atm(1)%flagstruct%ignore_rst_cksum)
       call close_file(Atm(1)%Fv_restart_tile)
       Atm(1)%Fv_restart_tile_is_open = .false.
