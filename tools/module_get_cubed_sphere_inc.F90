@@ -204,7 +204,6 @@ module module_get_cubed_sphere_inc
                mode=nf90_nowrite, &
                ncid=ncid); NC_ERR_STOP(ncerr)
     end if
-
     ncerr = nf90_inquire(ncid, nvariables = nvar); NC_ERR_STOP(ncerr)
     write(6,*) 'nvars is ',nvar
     allocate(incvars(nvar))
