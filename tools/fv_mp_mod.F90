@@ -400,9 +400,7 @@ contains
          npes_y = layout(2)
 
 
-         write(6,*) 'in dom decom 1'
          call mpp_domains_init(MPP_DOMAIN_TIME)
-         write(6,*) 'in dom decom 2'
 
          select case(nregions)
          case ( 1 )  ! Lat-Lon "cyclic"
@@ -481,7 +479,6 @@ contains
             num_contact = 12
             !--- cubic grid always have six tiles, so npes should be multiple of 6
             npes_per_tile = npes_x*npes_y
-         write(6,*) 'in dom decom 3'
             call  mpp_define_layout( (/1,npx-1,1,npy-1/), npes_per_tile, layout )
 
             if ( npes_x == 0 ) then
@@ -507,7 +504,6 @@ contains
 
          allocate(layout2D(2,nregions), global_indices(4,nregions), npes_tile(nregions) )
          allocate(pe_start(nregions),pe_end(nregions))
-         write(6,*) 'in dom decom 4'
          npes_tile = npes_per_tile
          do n = 1, nregions
             global_indices(:,n) = (/1,npx-1,1,npy-1/)
@@ -633,7 +629,6 @@ contains
             istart2(12) = 1;  iend2(12) = 1;  jstart2(12) = 1;  jend2(12) = ny
          end select
 
-         write(6,*) 'in dom decom 5'
          if ( ANY(pelist == gid) ) then
             allocate(tile_id(nregions))
             if( nested ) then
@@ -646,40 +641,23 @@ contains
                   tile_id(n) = n
                enddo
             endif
-#if 0
-         write(6,*) 'in dom pes are',mpp_npes(),mpp_pe()
-         if(mpp_pe() < 6) then
-           call mpp_set_current_pelist((/ 0, 1, 2, 3, 4, 5 /))
-         else
-           call mpp_set_current_pelist((/ 6, 7, 8, 9, 10, 11 /))
-         endif
-         call mpp_get_current_pelist(pelist)
-#endif
-         write(6,*) 'in dom pelist is',pelist
-         write(6,*) 'in dom decom 6',pe_start,pe_end
             call mpp_define_mosaic(global_indices, layout2D, domain, nregions, num_contact, tile1, tile2, &
                  istart1, iend1, jstart1, jend1, istart2, iend2, jstart2, jend2,      &
                  pe_start=pe_start, pe_end=pe_end, symmetry=is_symmetry, &
                  shalo = ng, nhalo = ng, whalo = ng, ehalo = ng, tile_id=tile_id, name = type)
-         write(6,*) 'in dom decom 6.1'
             call mpp_define_mosaic(global_indices, layout2D, domain_for_coupler, nregions, num_contact, tile1, tile2, &
                  istart1, iend1, jstart1, jend1, istart2, iend2, jstart2, jend2,                  &
                  pe_start=pe_start, pe_end=pe_end, symmetry=is_symmetry,                          &
                  shalo = 1, nhalo = 1, whalo = 1, ehalo = 1, tile_id=tile_id, name = type)
-         write(6,*) 'in dom decom 7'
             deallocate(tile_id)
             call mpp_define_io_domain(domain, io_layout)
-         write(6,*) 'in dom decom 8'
             call mpp_define_io_domain(domain_for_coupler, io_layout)
-         write(6,*) 'in dom decom 9'
 
             !--- create a read domain that can be used to improve read performance
             !--- if io_layout=(1,1) then read io_layout=layout (all read)
             !--- if io_layout\=(1,1) then read io_layout=io_layout (no change)
             l_layout = mpp_get_io_domain_layout(domain)
-         write(6,*) 'in dom decom 10'
             call mpp_copy_domain(domain, domain_for_read)
-         write(6,*) 'in dom decom 11'
             if (ALL(l_layout == 1)) then
               call mpp_get_layout(domain, l_layout)
               call mpp_define_io_domain(domain_for_read, l_layout)
@@ -687,7 +665,6 @@ contains
               call mpp_define_io_domain(domain_for_read, l_layout)
             endif
          endif
-         write(6,*) 'in dom decom 12'
 
        deallocate(pe_start,pe_end)
        deallocate(layout2D, global_indices, npes_tile)
@@ -1015,10 +992,6 @@ subroutine broadcast_domains(Atm,current_pelist,current_npes)
 !  ensemble_id = get_ensemble_id()
   ensemble_id = current_pelist(1)/current_npes + 1
   ens_root_pe = (ensemble_id-1)*npes
-  write(6,*) 'in broadcast cur_pelist is',current_pelist
-  write(6,*) 'in broadcast cur_npes is',current_npes
-  write(6,*) 'in broadcast ensemble_id is',ensemble_id
-  write(6,*) 'in broadcast ens_root_pe is',ens_root_pe
   !Pelist needs to be set to ALL ensemble PEs for broadcast_domain to work
   call mpp_set_current_pelist((/ (i,i=ens_root_pe,npes-1+ens_root_pe) /))
   do n=1,size(Atm)
