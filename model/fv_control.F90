@@ -417,9 +417,12 @@ module fv_control_mod
      logical, pointer :: write_coarse_dgrid_vel_rst
      !!!!!!!!!! END POINTERS !!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
+     grid_pes(:) = 0
+     write(6,*) 'in ufs-wm'
      this_grid = -1 ! default
      call mp_assign_gid
      ens_root_pe = mpp_root_pe()
+     write(6,*) 'in ufs-wm 2'
 
      if (present(nml_filename_in)) nml_filename = nml_filename_in
      if (present(skip_nml_read_in)) skip_nml_read = skip_nml_read_in
@@ -428,6 +431,7 @@ module fv_control_mod
      call read_namelist_nest_nml
      call read_namelist_fv_nest_nml
 
+     write(6,*) 'in ufs-wm 3'
      ! 2. Set up Atm and PElists
      do n=2,MAX_NNEST
         if (tile_coarse(n) > 0) then
@@ -449,14 +453,18 @@ module fv_control_mod
      allocate(Atm(ngrids))
      npes = mpp_npes() ! now on global pelist
 
+     write(6,*) 'in ufs-wm 4.0 npes is',npes
      allocate(global_pelist(npes))
      call mpp_get_current_pelist(global_pelist, commID=global_commID) ! for commID
 
+     write(6,*) 'in ufs-wm 4, global_pe_list', global_pelist
+     write(6,*) 'in ufs-wm 5'
      allocate(grids_master_procs(ngrids))
      pecounter = 0
      allocate(grids_on_this_pe(ngrids))
      grids_on_this_pe(:) = .false.
 
+     write(6,*) 'in ufs-wm 6 ngrids and grid_pes and npes',ngrids,grid_pes(1),npes
      do n=1,ngrids
 
         if (ngrids == 1 .or. grid_pes(n) == 0) then
@@ -472,6 +480,8 @@ module fv_control_mod
 
         allocate(Atm(n)%pelist(grid_pes(n)))
         grids_master_procs(n) = pecounter
+        write(6,*) 'pecounter starts at ',pecounter
+        write(6,*) 'grid_pes(n) is ',grid_pes(n)
         do i=1,grid_pes(n)
            if (pecounter >= npes) then
               if (mpp_pe() == 0) then
@@ -505,6 +515,7 @@ module fv_control_mod
         endif
      enddo
 
+     write(6,*) 'in ufs-wm 7, this_grid is ',this_grid, MAX_NNEST
      do n=1,ngrids
         !ONE grid per pe
         if (ANY(mpp_pe() == Atm(n)%pelist)) then
@@ -537,6 +548,7 @@ module fv_control_mod
            Atm(n)%neststruct%refinement             = -1
         endif
      enddo
+     write(6,*) 'in ufs-wm 7.1, this_grid is ',this_grid, pecounter, npes
 
      if (pecounter /= npes) then
         if (mpp_pe() == 0) then
@@ -545,6 +557,7 @@ module fv_control_mod
         endif
      endif
 
+     write(6,*) 'in ufs-wm 8'
      ! 3pre.
      call timing_init
      call timing_on('TOTAL')
@@ -577,8 +590,11 @@ module fv_control_mod
                   Atm(this_grid)%flagstruct%ncnst,  Atm(this_grid)%flagstruct%nwat)
      endif
      call read_namelist_test_case_nml(Atm(this_grid)%nml_filename)
+     write(6,*) 'in ufs-wm 9'
      call mpp_get_current_pelist(Atm(this_grid)%pelist, commID=commID) ! for commID
+     write(6,*) 'in ufs-wm 10'
      call mp_start(commID,halo_update_type)
+     write(6,*) 'in ufs-wm 11'
 
      ! 4. Set up domains
      !    This should make use of new fv_nest_nml namelists
@@ -607,6 +623,8 @@ module fv_control_mod
      ! need number of tiles, npx, and npy on each grid
      ! need to define a global PElist
 
+     write(6,*) 'in ufs-wm 12, ntiles and ngrids are ',ntiles,ngrids
+     write(6,*) 'in ufs-wm 12.1, global_pelist is ',global_pelist
      all_ntiles(this_grid) = ntiles
      call mpp_max(all_ntiles, ngrids, global_pelist)
 
@@ -622,6 +640,7 @@ module fv_control_mod
      if (Atm(this_grid)%neststruct%twowaynest) all_twowaynest(this_grid) = 1
      call mpp_max(all_twowaynest, ngrids, global_pelist)
 
+     write(6,*) 'in ufs-wm 13'
      ntiles_nest_all = 0
      do n=1,ngrids
         if (n/=this_grid) then
@@ -662,22 +681,35 @@ module fv_control_mod
      endif
 
      ! 5. domain_decomp()
+     write(6,*) 'in ufs-wm 14'
+     if(mpp_pe() == 0) then 
+       write(6,*) 'a', this_grid,Atm(this_grid)%flagstruct%npx,Atm(this_grid)%flagstruct%npy
+       write(6,*) 'b', Atm(this_grid)%flagstruct%ntiles, Atm(this_grid)%flagstruct%grid_type,Atm(this_grid)%neststruct%nested
+       write(6,*) 'c', Atm(this_grid)%layout,Atm(this_grid)%io_layout,Atm(this_grid)%bd,Atm(this_grid)%tile_of_mosaic
+       write(6,*) 'd', Atm(this_grid)%npes_per_tile
+       write(6,*) 'e', Atm(this_grid)%num_contact
+       write(6,*) 'f', Atm(this_grid)%pelist
+     endif
      call domain_decomp(this_grid,Atm(this_grid)%flagstruct%npx,Atm(this_grid)%flagstruct%npy,Atm(this_grid)%flagstruct%ntiles,&
           Atm(this_grid)%flagstruct%grid_type,Atm(this_grid)%neststruct%nested, &
           Atm(this_grid)%layout,Atm(this_grid)%io_layout,Atm(this_grid)%bd,Atm(this_grid)%tile_of_mosaic, &
           Atm(this_grid)%gridstruct%square_domain,Atm(this_grid)%npes_per_tile,Atm(this_grid)%domain, &
           Atm(this_grid)%domain_for_coupler,Atm(this_grid)%domain_for_read,Atm(this_grid)%num_contact, &
           Atm(this_grid)%pelist)
+     write(6,*) 'in ufs-wm 14.1',Atm(this_grid)%pelist
      call broadcast_domains(Atm,Atm(this_grid)%pelist,size(Atm(this_grid)%pelist))
+     write(6,*) 'in ufs-wm 14.2'
      do n=1,ngrids
         tile_id = mpp_get_tile_id(Atm(n)%domain)
         Atm(n)%global_tile = tile_id(1) ! only meaningful locally
         Atm(n)%npes_per_tile = size(Atm(n)%pelist)/Atm(n)%flagstruct%ntiles ! domain decomp doesn't set this globally
      enddo
+     write(6,*) 'in ufs-wm 14.3'
 
      ! 6. Set up domain and Atm structure
      call tm_register_tracers (MODEL_ATMOS, Atm(this_grid)%flagstruct%ncnst, Atm(this_grid)%flagstruct%nt_prog, &
           Atm(this_grid)%flagstruct%pnats, num_family)
+     write(6,*) 'in ufs-wm 14.4'
      if(is_master()) then
         write(*,*) 'ncnst=', ncnst,' num_prog=',Atm(this_grid)%flagstruct%nt_prog,' pnats=',Atm(this_grid)%flagstruct%pnats,' dnats=',dnats,&
              ' num_family=',num_family
@@ -697,6 +729,7 @@ module fv_control_mod
              Atm(n)%flagstruct%ndims, Atm(n)%flagstruct%ntiles,  Atm(n)%flagstruct%ncnst, Atm(n)%flagstruct%ncnst-Atm(n)%flagstruct%pnats, &
              n/=this_grid, n==this_grid, ngrids) !TODO don't need both of the last arguments
      enddo
+     write(6,*) 'in ufs-wm 14.5'
      if ( (Atm(this_grid)%bd%iec-Atm(this_grid)%bd%isc+1).lt.4 .or. (Atm(this_grid)%bd%jec-Atm(this_grid)%bd%jsc+1).lt.4 ) then
         if (is_master()) write(*,'(6I6)') Atm(this_grid)%bd%isc, Atm(this_grid)%bd%iec, Atm(this_grid)%bd%jsc, Atm(this_grid)%bd%jec, this_grid
         call mpp_error(FATAL,'Domain Decomposition:  Cubed Sphere compute domain has a &
@@ -704,6 +737,7 @@ module fv_control_mod
      end if
 
 
+     write(6,*) 'in ufs-wm 15'
      !Tile_coarse is needed to determine which processors are needed to send around their
      ! data for computing the interpolation coefficients
      if (ngrids > 1) then
