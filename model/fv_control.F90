@@ -457,6 +457,7 @@ module fv_control_mod
      allocate(grids_on_this_pe(ngrids))
      grids_on_this_pe(:) = .false.
 
+     grid_pes(1) = npes
      do n=1,ngrids
 
         if (ngrids == 1 .or. grid_pes(n) == 0) then
